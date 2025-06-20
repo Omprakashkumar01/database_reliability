@@ -1,0 +1,44 @@
+
+version: '3.8'
+
+services:
+  pg_master:
+    image: postgres:16
+    container_name: pg_master
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: testDB
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpassword
+    volumes:
+      - master_data:/var/lib/postgresql/data
+      - ./master_config/postgresql.conf:/etc/postgresql/postgresql.conf # Mount custom config directly
+      - ./init_master.sql:/docker-entrypoint-initdb.d/init_master.sql # Mount master init script
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"] # Explicitly use our config
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d testDB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10 # Increased retries for healthcheck
+
+  pg_replica:
+    image: postgres:16
+    container_name: pg_replica
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: testDB
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpassword
+    volumes:
+      - replica_data:/var/lib/postgresql/data
+      - ./init_replica.sql:/docker-entrypoint-initdb.d/init_replica.sql # Mount replica init script
+    depends_on:
+      pg_master:
+        condition: service_healthy
+
+volumes:
+  master_data:
+  replica_data:
+
